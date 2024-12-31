@@ -56,3 +56,12 @@ PRs are welcome :)
 - It is recommended to restart the bot after every few hours becuase WhatsApp likes to disconnect a lot. So a sample Systemd service file has been provided (`watgbridge.service.sample`). Edit the `User` and `ExecStart` according to your setup:
     - If you do not have local bot API server, remove `tgbotapi.service` from the `After` key in `Unit` section.
     - This service file will restart the bot every 24 hours
+
+## Docker
+
+- Ensure you have Docker and Docker Compose installed on your system.
+- Clone this repository anywhere and navigate to the cloned directory.
+- Copy `sample_config.yaml` to `config.yaml` and fill the values, there are comments to help you.
+- Run `docker-compose up -d` to start the application in detached mode.
+- On first run, it will show QR code for logging into WhatsApp that can be scanned by the WhatsApp app in `Linked devices`.
+- It is recommended to restart the bot after every few hours because WhatsApp likes to disconnect a lot. You can configure this in the `docker-compose.yml` file if needed.
