@@ -65,3 +65,4 @@ PRs are welcome :)
 - Run `docker-compose up -d` to start the application in detached mode.
 - On first run, it will show QR code for logging into WhatsApp that can be scanned by the WhatsApp app in `Linked devices`.
 - It is recommended to restart the bot after every few hours because WhatsApp likes to disconnect a lot. You can configure this in the `docker-compose.yml` file if needed.
+- **Warning:** If you change the name of the database being saved in memory, make sure to update the name in the `docker-compose.yml` file as well.

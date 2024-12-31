@@ -73,8 +73,9 @@ whatsapp:
     author_name: WaTgBridge
 
 
-#Uncomment any on of these sections
-#Using the sqlite database will be easiest as it does not require any hosted database server and stores data in a single file on your device
+# Uncomment any one of these sections
+# Using the sqlite database will be easiest as it does not require any hosted database server and stores data in a single file on your device
+# Note: If you are using Docker, it is not recommended to change the database name. If you do, make sure to update it in the docker-compose file as well.
 
 #database:
 #  type: postgres
