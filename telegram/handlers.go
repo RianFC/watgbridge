@@ -620,19 +620,27 @@ func GetProfilePictureHandler(b *gotgbot.Bot, c *ext.Context) error {
 		return nil
 	}
 
-	usageString := "Usage: <code>" + html.EscapeString("/getprofilepicture <user/group_id>") + "</code>"
-	usageString += "\n\nYou need to add <code>@g.us</code> at the end for groups"
-
 	args := c.Args()
-	if len(args) <= 1 {
-		_, err := utils.TgReplyTextByContext(b, c, usageString, nil, false)
-		return err
-	}
-
 	var (
 		waClient = state.State.WhatsAppClient
-		userID   = args[1]
+		userID   string
 	)
+	if len(args) <= 1 {
+		tgChatId := c.EffectiveChat.Id
+		tgThreadId := c.EffectiveMessage.MessageThreadId
+
+		waChatId, err := database.ChatThreadGetWaFromTg(tgChatId, tgThreadId)
+		if err != nil {
+			return utils.TgReplyWithErrorByContext(b, c, "Failed to get existing chat ID pairing", err)
+		} else if waChatId == "" {
+			_, err := utils.TgReplyTextByContext(b, c, "No existing chat pairing found!!", nil, false)
+			return err
+		}
+
+		userID = waChatId
+	} else {
+		userID = args[1]
+	}
 
 	userJID, _ := utils.WaParseJID(userID)
 
