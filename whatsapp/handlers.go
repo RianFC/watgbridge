@@ -54,6 +54,9 @@ func WhatsAppEventHandler(evt interface{}) {
 	case *events.CallOffer:
 		CallOfferEventHandler(v)
 
+	case *events.UndecryptableMessage:
+		UndecryptableMessageEventHandler(v)
+
 	case *events.Message:
 
 		isEdited := false
@@ -1885,4 +1888,29 @@ func LogoutHandler(v *events.LoggedOut) {
 	updateText += fmt.Sprintf("<b>Reason:</b> %s", html.EscapeString(v.Reason.String()))
 
 	utils.TgSendTextById(tgBot, cfg.Telegram.OwnerID, 0, updateText)
+}
+
+func UndecryptableMessageEventHandler(v *events.UndecryptableMessage) {
+	var (
+		cfg   = state.State.Config
+		tgBot = state.State.TelegramBot
+	)
+
+	tgThreadId, threadFound, err := database.ChatThreadGetTgFromWa(v.Info.Chat.String(), cfg.Telegram.TargetChatID)
+	if err != nil {
+		return
+	}
+	if !threadFound || tgThreadId == 0 {
+		return
+	}
+
+	message := "Received an undecryptable message"
+
+	if v.UnavailableType == events.UnavailableTypeViewOnce {
+		message = "You received a view once message. For added privacy, you can only open it on the WhatsApp app."
+	}
+
+	tgBot.SendMessage(cfg.Telegram.TargetChatID, message, &gotgbot.SendMessageOpts{
+		MessageThreadId: tgThreadId,
+	})
 }
