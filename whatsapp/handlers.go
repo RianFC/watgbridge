@@ -1206,6 +1206,34 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 		}
 		return
 
+	} else if v.Message.GetEventMessage() != nil {
+		bridgedText += "<i>New event created</i>\n\n"
+		eventMsg := v.Message.GetEventMessage()
+		bridgedText += "Name: " + html.EscapeString(eventMsg.GetName()) + "\n"
+		if eventMsg.GetDescription() != "" {
+			bridgedText += "Description: " + html.EscapeString(eventMsg.GetDescription()) + "\n"
+		}
+		bridgedText += "Start: " + time.Unix(eventMsg.GetStartTime(), 0).Format(cfg.TimeFormat)
+		if eventMsg.GetEndTime() != 0 {
+			bridgedText += "\nEnd: " + time.Unix(eventMsg.GetEndTime(), 0).Format(cfg.TimeFormat)
+		}
+		if eventMsg.GetLocation() != nil {
+			bridgedText += "\nLocation: " + html.EscapeString(*eventMsg.GetLocation().Name) + "\n"
+		}
+		if eventMsg.GetJoinLink() != "" {
+			bridgedText += "Join link: " + html.EscapeString(eventMsg.GetJoinLink()) + "\n"
+		}
+		sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
+			ReplyParameters: &gotgbot.ReplyParameters{
+				MessageId: replyToMsgId,
+			},
+			MessageThreadId: threadId,
+		})
+		if sentMsg.MessageId != 0 {
+			database.MsgIdAddNewPair(msgId, v.Info.MessageSource.Sender.String(), v.Info.Chat.String(),
+				cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
+		}
+		return
 	} else {
 		if text == "" {
 			if reactionMsg := v.Message.GetReactionMessage(); cfg.Telegram.Reactions && reactionMsg != nil {
