@@ -491,7 +491,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			imageBytes, err := waClient.Download(imageMsg)
+			imageBytes, err := waClient.Download(context.Background(), imageMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the photo due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -564,7 +564,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			gifBytes, err := waClient.Download(gifMsg)
+			gifBytes, err := waClient.Download(context.Background(), gifMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the GIF due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -649,7 +649,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			videoBytes, err := waClient.Download(videoMsg)
+			videoBytes, err := waClient.Download(context.Background(), videoMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the video due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -738,7 +738,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			audioBytes, err := waClient.Download(audioMsg)
+			audioBytes, err := waClient.Download(context.Background(), audioMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the audio due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -808,7 +808,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			audioBytes, err := waClient.Download(audioMsg)
+			audioBytes, err := waClient.Download(context.Background(), audioMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the audio due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -878,7 +878,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			documentBytes, err := waClient.Download(documentMsg)
+			documentBytes, err := waClient.Download(context.Background(), documentMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the document due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -955,7 +955,7 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 			}
 			return
 		} else {
-			stickerBytes, err := waClient.Download(stickerMsg)
+			stickerBytes, err := waClient.Download(context.Background(), stickerMsg)
 			if err != nil {
 				bridgedText += "\n<i>Couldn't download the sticker due to some errors</i>"
 				sentMsg, _ := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
@@ -1330,6 +1330,116 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 				cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
 		}
 		return
+	}
+}
+
+func UndecryptableMessageEventHandler(v *events.UndecryptableMessage) {
+	var (
+		cfg    = state.State.Config
+		logger = state.State.Logger
+		tgBot  = state.State.TelegramBot
+		msgId  = v.Info.ID
+	)
+	defer logger.Sync()
+
+	if v.UnavailableType != events.UnavailableTypeViewOnce {
+		return
+	} else if slices.Contains(cfg.WhatsApp.IgnoreChats, v.Info.Chat.User) {
+		logger.Debug("returning because message from an ignored chat",
+			zap.String("event_id", v.Info.ID),
+			zap.String("chat_jid", v.Info.Chat.String()),
+		)
+		return
+	}
+
+	var bridgedText string
+	if cfg.WhatsApp.SkipChatDetails {
+		logger.Debug("skipping to add chat details as configured",
+			zap.String("event_id", v.Info.ID),
+		)
+		if v.Info.IsIncomingBroadcast() {
+			bridgedText += "👥: <b>(Broadcast)</b>\n"
+		} else if v.Info.IsFromMe {
+			bridgedText += "🧑: <b>You [other device]</b>\n"
+		} else if v.Info.IsGroup {
+			bridgedText += fmt.Sprintf("🧑: <b>%s</b>\n", html.EscapeString(utils.WaGetContactName(v.Info.MessageSource.Sender)))
+		}
+
+	} else {
+
+		if v.Info.IsFromMe {
+			bridgedText += "🧑: <b>You [other device]</b>\n"
+		} else {
+			bridgedText += fmt.Sprintf("🧑: <b>%s</b>\n", html.EscapeString(utils.WaGetContactName(v.Info.MessageSource.Sender)))
+		}
+		if v.Info.IsIncomingBroadcast() {
+			bridgedText += "👥: <b>(Broadcast)</b>\n"
+		} else if v.Info.IsGroup {
+			bridgedText += fmt.Sprintf("👥: <b>%s</b>\n", html.EscapeString(utils.WaGetGroupName(v.Info.Chat)))
+		} else {
+			bridgedText += "👥: <b>(PVT)</b>\n"
+		}
+
+	}
+
+	if time.Since(v.Info.Timestamp).Seconds() > 60 {
+		bridgedText += fmt.Sprintf("🕛: <b>%s</b>\n",
+			html.EscapeString(v.Info.Timestamp.In(state.State.LocalLocation).Format(cfg.TimeFormat)))
+	}
+
+	bridgedText += "\n<i>It is a View Once message.\nPlease check in your official WhatsApp application</i>"
+
+	var threadId int64
+
+	var err error
+	if v.Info.Chat.String() == "status@broadcast" {
+		threadId, err = utils.TgGetOrMakeThreadFromWa("status@broadcast", cfg.Telegram.TargetChatID,
+			"Status")
+		if err != nil {
+			utils.TgSendErrorById(tgBot, cfg.Telegram.TargetChatID, 0, "failed to create/find thread id for 'status@broadcast'", err)
+			return
+		}
+	} else if v.Info.IsIncomingBroadcast() {
+		threadId, err = utils.TgGetOrMakeThreadFromWa(v.Info.MessageSource.Sender.ToNonAD().String(), cfg.Telegram.TargetChatID,
+			utils.WaGetContactName(v.Info.MessageSource.Sender))
+		if err != nil {
+			utils.TgSendErrorById(tgBot, cfg.Telegram.TargetChatID, 0, fmt.Sprintf("failed to create/find thread id for '%s'",
+				v.Info.MessageSource.Sender.ToNonAD().String()), err)
+			return
+		}
+	} else if v.Info.IsGroup {
+		threadId, err = utils.TgGetOrMakeThreadFromWa(v.Info.Chat.String(), cfg.Telegram.TargetChatID,
+			utils.WaGetGroupName(v.Info.Chat))
+		if err != nil {
+			utils.TgSendErrorById(tgBot, cfg.Telegram.TargetChatID, 0, fmt.Sprintf("failed to create/find thread id for '%s'",
+				v.Info.Chat.String()), err)
+			return
+		}
+	} else {
+		var target_chat_jid waTypes.JID
+		if v.Info.IsFromMe {
+			target_chat_jid = v.Info.Chat
+		} else {
+			target_chat_jid = v.Info.Chat
+		}
+
+		threadId, err = utils.TgGetOrMakeThreadFromWa(target_chat_jid.ToNonAD().String(), cfg.Telegram.TargetChatID, utils.WaGetContactName(target_chat_jid))
+		if err != nil {
+			utils.TgSendErrorById(tgBot, cfg.Telegram.TargetChatID, 0, fmt.Sprintf("failed to create/find thread id for '%s'",
+				target_chat_jid.ToNonAD().String()), err)
+			return
+		}
+	}
+
+	sentMsg, err := tgBot.SendMessage(cfg.Telegram.TargetChatID, bridgedText, &gotgbot.SendMessageOpts{
+		MessageThreadId: threadId,
+	})
+	if err != nil {
+		panic(fmt.Errorf("failed to send telegram message: %s", err))
+	}
+	if sentMsg.MessageId != 0 {
+		database.MsgIdAddNewPair(msgId, v.Info.MessageSource.Sender.String(), v.Info.Chat.String(),
+			cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
 	}
 }
 
