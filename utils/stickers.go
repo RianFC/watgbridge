@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+
 	// "image/color"
 	"image/draw"
 	"os"
@@ -150,24 +151,24 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 	// - Max 256KB file size
 	// - VP9 codec
 	// - No audio stream
-	logger.Debug("Starting WEBM conversion", 
+	logger.Debug("Starting WEBM conversion",
 		zap.String("inputPath", inputPath),
 		zap.String("outputPath", outputPath),
 	)
 
 	// First convert WebP to GIF using ImageMagick (which handles animated WebP better)
 	tempGifPath := path.Join(currPath, "temp.gif")
-	
+
 	convertCmd := exec.Command("convert",
 		inputPath,
-		"-coalesce",    // Ensure all frames are complete
-		"-loop", "0",   // Loop infinitely
+		"-coalesce",  // Ensure all frames are complete
+		"-loop", "0", // Loop infinitely
 		tempGifPath,
 	)
-	
+
 	var convertStderr bytes.Buffer
 	convertCmd.Stderr = &convertStderr
-	
+
 	if err := convertCmd.Run(); err != nil {
 		logger.Debug("failed to convert webp to gif with ImageMagick",
 			zap.Error(err),
@@ -180,19 +181,19 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 
 	// Now convert GIF to WEBM with VP9 codec
 	cmd := exec.Command("ffmpeg",
-		"-stream_loop", "-1",     // Loop input indefinitely
+		"-stream_loop", "-1", // Loop input indefinitely
 		"-i", tempGifPath,
-		"-c:v", "libvpx-vp9",     // VP9 codec
-		"-an",                    // No audio stream
+		"-c:v", "libvpx-vp9", // VP9 codec
+		"-an",                                                                                       // No audio stream
 		"-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2", // Scale to 512px maintaining aspect ratio
-		"-t", "3",                // Max 3 seconds
-		"-r", "30",               // Max 30 FPS
-		"-b:v", "0",              // Use CRF mode
-		"-crf", "30",             // Quality setting (lower = better quality, higher file size)
-		"-deadline", "good",      // Encoding speed vs quality trade-off
-		"-cpu-used", "2",         // CPU usage (0-5, higher = faster encoding)
-		"-fs", "256K",            // Max file size 256KB
-		"-y",                     // Overwrite output file
+		"-t", "3", // Max 3 seconds
+		"-r", "30", // Max 30 FPS
+		"-b:v", "0", // Use CRF mode
+		"-crf", "30", // Quality setting (lower = better quality, higher file size)
+		"-deadline", "good", // Encoding speed vs quality trade-off
+		"-cpu-used", "2", // CPU usage (0-5, higher = faster encoding)
+		"-fs", "256K", // Max file size 256KB
+		"-y", // Overwrite output file
 		outputPath,
 	)
 
