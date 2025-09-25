@@ -186,7 +186,6 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 		"-c:v", "libvpx-vp9", // VP9 codec
 		"-an",                                                                                       // No audio stream
 		"-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2", // Scale to 512px maintaining aspect ratio
-		"-t", "3", // Max 3 seconds
 		"-r", "30", // Max 30 FPS
 		"-b:v", "0", // Use CRF mode
 		"-crf", "30", // Quality setting (lower = better quality, higher file size)
