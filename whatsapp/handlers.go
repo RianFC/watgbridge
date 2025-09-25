@@ -971,6 +971,30 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 				return
 			}
 			if stickerMsg.GetIsAnimated() || stickerMsg.GetIsAvatar() {
+				// Try to convert to WEBM first (preferred for animated stickers)
+				webmBytes, err := utils.AnimatedWebpConvertToWebm(stickerBytes, v.Info.ID)
+				if err == nil {
+					// Send as animated sticker (WEBM)
+					fileToSend := gotgbot.FileReader{
+						Name: "sticker.webm",
+						Data: bytes.NewReader(webmBytes),
+					}
+
+					sentMsg, _ := tgBot.SendSticker(cfg.Telegram.TargetChatID, &fileToSend, &gotgbot.SendStickerOpts{
+						ReplyParameters: &gotgbot.ReplyParameters{
+							MessageId: replyToMsgId,
+						},
+						MessageThreadId: threadId,
+						ReplyMarkup:     replyMarkup,
+					})
+					if sentMsg.MessageId != 0 {
+						database.MsgIdAddNewPair(msgId, v.Info.MessageSource.Sender.String(), v.Info.Chat.String(),
+							cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
+					}
+					return
+				}
+
+				// Fallback to GIF if WEBM conversion fails
 				gifBytes, err := utils.AnimatedWebpConvertToGif(stickerBytes, v.Info.ID)
 				if err != nil {
 					goto WEBP_TO_GIF_FAILED
@@ -2026,29 +2050,4 @@ func LogoutHandler(v *events.LoggedOut) {
 	updateText += fmt.Sprintf("<b>Reason:</b> %s", html.EscapeString(v.Reason.String()))
 
 	utils.TgSendTextById(tgBot, cfg.Telegram.OwnerID, 0, updateText)
-}
-
-func UndecryptableMessageEventHandler(v *events.UndecryptableMessage) {
-	var (
-		cfg   = state.State.Config
-		tgBot = state.State.TelegramBot
-	)
-
-	tgThreadId, threadFound, err := database.ChatThreadGetTgFromWa(v.Info.Chat.String(), cfg.Telegram.TargetChatID)
-	if err != nil {
-		return
-	}
-	if !threadFound || tgThreadId == 0 {
-		return
-	}
-
-	message := "Received an undecryptable message"
-
-	if v.UnavailableType == events.UnavailableTypeViewOnce {
-		message = "You received a view once message. For added privacy, you can only open it on the WhatsApp app."
-	}
-
-	tgBot.SendMessage(cfg.Telegram.TargetChatID, message, &gotgbot.SendMessageOpts{
-		MessageThreadId: tgThreadId,
-	})
 }
