@@ -145,7 +145,6 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 	// Convert WebP to WEBM with VP9 codec
 	// Following Telegram's requirements:
 	// - One side must be exactly 512px (other can be 512px or less)
-	// - Max 3 seconds duration
 	// - Max 30 FPS
 	// - Loop for optimal UX
 	// - Max 256KB file size
@@ -181,7 +180,6 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 
 	// Now convert GIF to WEBM with VP9 codec
 	cmd := exec.Command("ffmpeg",
-		"-stream_loop", "-1", // Loop input indefinitely
 		"-i", tempGifPath,
 		"-c:v", "libvpx-vp9", // VP9 codec
 		"-an",                                                                                       // No audio stream
