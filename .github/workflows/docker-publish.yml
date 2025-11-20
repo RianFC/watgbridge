@@ -2,6 +2,8 @@ name: Build and Publish Docker Image
 
 on:
   push:
+    branches:
+      - '**'
   workflow_dispatch:
 
 env:
@@ -14,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     
     steps:
       - name: Checkout repository
