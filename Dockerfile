@@ -1,8 +1,6 @@
-FROM golang:1.23.0-alpine3.19 AS build
+FROM golang:1.24-alpine3.22 AS build
 
 RUN apk --no-cache add gcc g++ make git libwebp-tools ffmpeg imagemagick
-RUN git config --global user.email "$(git config --global user.email)" && \
-    git config --global user.name "$(git config --global user.name)"
 WORKDIR /go/src/watgbridge
 COPY go.mod go.sum ./
 RUN go mod download
