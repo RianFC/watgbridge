@@ -59,6 +59,64 @@ PRs are welcome :)
 
 ## Docker
 
+### Using Published Container
+
+> **Important:** Before running the container, make sure to download and configure the `config.yaml` file. You can use the `sample_config.yaml` as a template.
+
+#### Pull and run the image from GitHub Container Registry
+
+**Using Docker:**
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/rianfc/watgbridge:latest
+
+# Run the container
+docker run -d \
+  --name watgbridge \
+  -v $(pwd)/config.yaml:/go/src/watgbridge/config.yaml \
+  -v $(pwd)/downloads:/go/src/watgbridge/downloads \
+  ghcr.io/rianfc/watgbridge:latest
+```
+
+**Using Docker Compose:**
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  watgbridge:
+    image: ghcr.io/rianfc/watgbridge:latest
+    container_name: watgbridge
+    volumes:
+      - ./config.yaml:/go/src/watgbridge/config.yaml
+      - ./downloads:/go/src/watgbridge/downloads
+      - ./state:/go/src/watgbridge/state
+    restart: unless-stopped
+```
+
+Then run:
+
+```bash
+docker-compose up -d
+```
+
+**Check logs:**
+
+```bash
+docker logs -f watgbridge
+```
+
+**Available tags:**
+
+- `latest` - Latest version from main branch
+- `main` - Main branch
+- `vX.Y.Z` - Specific versions (when tags are created)
+
+### Building from Source
+
 - Ensure you have Docker and Docker Compose installed on your system.
 - Clone this repository anywhere and navigate to the cloned directory.
 - Copy `sample_config.yaml` to `config.yaml` and fill the values, there are comments to help you.
