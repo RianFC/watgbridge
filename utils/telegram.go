@@ -224,7 +224,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 	}
 
 	if cfg.Telegram.SendMyPresence {
-		err := waClient.SendPresence(waTypes.PresenceAvailable)
+		err := waClient.SendPresence(context.Background(), waTypes.PresenceAvailable)
 		if err != nil {
 			logger.Warn("failed to send presence",
 				zap.Error(err),
@@ -234,7 +234,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		go func() {
 			time.Sleep(10 * time.Second)
-			err := waClient.SendPresence(waTypes.PresenceUnavailable)
+			err := waClient.SendPresence(context.Background(), waTypes.PresenceUnavailable)
 			if err != nil {
 				logger.Warn("failed to send presence",
 					zap.Error(err),
@@ -254,7 +254,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 	}
 
 	if !ephemeralFound && waChatJID.Server == waTypes.GroupServer {
-		groupInfo, err := waClient.GetGroupInfo(waChatJID)
+		groupInfo, err := waClient.GetGroupInfo(context.Background(), waChatJID)
 		if err != nil {
 			logger.Info(
 				"failed to get group info from WhatsApp",
@@ -1050,7 +1050,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		for sender, msgIds := range unreadMsgs {
 			senderJID, _ := WaParseJID(sender)
-			err := waClient.MarkRead(msgIds, time.Now(), waChatJID, senderJID)
+			err := waClient.MarkRead(context.Background(), msgIds, time.Now(), waChatJID, senderJID)
 			if err != nil {
 				logger.Warn(
 					"failed to mark messages as read",
