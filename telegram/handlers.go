@@ -112,6 +112,10 @@ func AddTelegramHandlers() {
 			"Get all the available commands",
 		},
 		waTgBridgeCommand{
+			handlers.NewCommand("backup", BackupCommandHandler),
+			"Generate and send a database backup now",
+		},
+		waTgBridgeCommand{
 			handlers.NewCommand("block", BlockCommandHandler),
 			"Block a user in WhatsApp",
 		},
@@ -751,6 +755,30 @@ func HelpCommandHandler(b *gotgbot.Bot, c *ext.Context) error {
 	}
 
 	_, err := utils.TgReplyTextByContext(b, c, helpString, nil, false)
+	return err
+}
+
+func BackupCommandHandler(b *gotgbot.Bot, c *ext.Context) error {
+	if !utils.TgUpdateIsAuthorized(b, c) {
+		return nil
+	}
+
+	mode := strings.ToLower(strings.TrimSpace(state.State.Config.Backup.Mode))
+	if mode == "tread" {
+		mode = "thread"
+	}
+
+	if mode == "" || mode == "none" {
+		_, err := utils.TgReplyTextByContext(b, c,
+			"Backup está desativado no config (`backup.mode: none`).", nil, false)
+		return err
+	}
+
+	if err := utils.RunDatabaseBackupOnce(); err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Falha ao gerar/enviar backup", err)
+	}
+
+	_, err := utils.TgReplyTextByContext(b, c, "Backup enviado com sucesso.", nil, false)
 	return err
 }
 

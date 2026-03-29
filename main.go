@@ -254,5 +254,7 @@ SKIP_RESTART:
 		state.State.TelegramBot.SendMessage(cfg.Telegram.OwnerID, "Successfully started WaTgBridge", &gotgbot.SendMessageOpts{})
 	}
 
+	utils.StartAutomaticDatabaseBackups()
+
 	state.State.TelegramUpdater.Idle()
 }

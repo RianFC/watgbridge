@@ -32,6 +32,11 @@ telegram:
 
   reactions: true                         # If set to true, will send you new text messages whenever a user reacts to your message or revokes their reaction.
 
+backup:
+  mode: none                             # none = disabled | private = sends to owner_id | thread = creates/reuses a single topic in target_chat_id, sends backup there, and keeps it locked
+  interval_hours: 24                     # Backup interval in hours
+  thread_name: Database Backups          # Used only when mode is thread
+
 whatsapp:
   session_name: watgbridge        # This will appear in your Linked Devices in mobile app
   # All these values can be obtained by running /findcontacts and /getwagroups commands

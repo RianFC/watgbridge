@@ -74,6 +74,12 @@ type Config struct {
 	} `yaml:"whatsapp"`
 
 	Database map[string]string `yaml:"database"`
+
+	Backup struct {
+		Mode          string `yaml:"mode"`
+		IntervalHours int    `yaml:"interval_hours"`
+		ThreadName    string `yaml:"thread_name"`
+	} `yaml:"backup"`
 }
 
 func (cfg *Config) LoadConfig() error {
@@ -152,4 +158,8 @@ func (cfg *Config) SetDefaults() {
 	cfg.WhatsApp.StickerMetadata.AuthorName = "WaTgBridge"
 
 	cfg.Telegram.ConfirmationType = "emoji"
+
+	cfg.Backup.Mode = "none"
+	cfg.Backup.IntervalHours = 24
+	cfg.Backup.ThreadName = "Database Backups"
 }
