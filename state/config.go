@@ -76,9 +76,9 @@ type Config struct {
 	Database map[string]string `yaml:"database"`
 
 	Backup struct {
-		Mode          string `yaml:"mode"`
-		IntervalHours int    `yaml:"interval_hours"`
-		ThreadName    string `yaml:"thread_name"`
+		Mode         string `yaml:"mode"`
+		CronSchedule string `yaml:"cron_schedule"`
+		ThreadName   string `yaml:"thread_name"`
 	} `yaml:"backup"`
 }
 
@@ -160,6 +160,6 @@ func (cfg *Config) SetDefaults() {
 	cfg.Telegram.ConfirmationType = "emoji"
 
 	cfg.Backup.Mode = "none"
-	cfg.Backup.IntervalHours = 24
+	cfg.Backup.CronSchedule = "0 0 * * *"
 	cfg.Backup.ThreadName = "Database Backups"
 }

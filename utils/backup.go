@@ -13,6 +13,7 @@ import (
 	"watgbridge/state"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
 
@@ -230,6 +231,17 @@ func RunDatabaseBackupOnce() error {
 	return sendBackupArchive(mode)
 }
 
+func resolveBackupSchedule() string {
+	cfg := state.State.Config
+
+	cronSchedule := strings.TrimSpace(cfg.Backup.CronSchedule)
+	if cronSchedule != "" {
+		return cronSchedule
+	}
+
+	return "0 0 * * *"
+}
+
 func StartAutomaticDatabaseBackups() {
 	cfg := state.State.Config
 	logger := state.State.Logger
@@ -245,26 +257,39 @@ func StartAutomaticDatabaseBackups() {
 		return
 	}
 
-	intervalHours := cfg.Backup.IntervalHours
-	if intervalHours <= 0 {
-		intervalHours = 24
+	schedule := resolveBackupSchedule()
+	cronParser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	if _, err := cronParser.Parse(schedule); err != nil {
+		logger.Error("invalid backup cron schedule",
+			zap.String("cron_schedule", schedule),
+			zap.Error(err),
+		)
+		return
 	}
 
 	logger.Info("automatic database backup enabled",
 		zap.String("mode", mode),
-		zap.Int("interval_hours", intervalHours),
+		zap.String("cron_schedule", schedule),
 	)
 
 	go func() {
-		ticker := time.NewTicker(time.Duration(intervalHours) * time.Hour)
-		defer ticker.Stop()
+		cronScheduler := cron.New(cron.WithLocation(state.State.LocalLocation))
 
-		for range ticker.C {
+		_, err := cronScheduler.AddFunc(schedule, func() {
 			if err := RunDatabaseBackupOnce(); err != nil {
 				logger.Error("failed to run automatic database backup", zap.Error(err))
 			} else {
 				logger.Info("automatic database backup sent successfully")
 			}
+		})
+		if err != nil {
+			logger.Error("failed to register backup cron schedule",
+				zap.String("cron_schedule", schedule),
+				zap.Error(err),
+			)
+			return
 		}
+
+		cronScheduler.Start()
 	}()
 }

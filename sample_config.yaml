@@ -34,7 +34,7 @@ telegram:
 
 backup:
   mode: none                             # none = disabled | private = sends to owner_id | thread = creates/reuses a single topic in target_chat_id, sends backup there, and keeps it locked
-  interval_hours: 24                     # Backup interval in hours
+  cron_schedule: "0 3 * * *"            # Cron de 5 campos (min hora dia mês semana). Exemplo: todo dia às 03:00
   thread_name: Database Backups          # Used only when mode is thread
 
 whatsapp:
