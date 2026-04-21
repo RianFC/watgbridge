@@ -574,7 +574,16 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to download audio from Telegram", err)
 		}
 
-		uploadedAudio, err := waClient.Upload(context.Background(), audioBytes, whatsmeow.MediaAudio)
+		// Convert audio to a WhatsApp-compatible format
+		convertedAudioBytes, err := ConvertAudioToWhatsAppFormat(audioBytes, c.UpdateId)
+		if err != nil {
+			logger.Warn("failed to convert audio to WhatsApp format, using original",
+				zap.Error(err),
+			)
+			convertedAudioBytes = audioBytes
+		}
+
+		uploadedAudio, err := waClient.Upload(context.Background(), convertedAudioBytes, whatsmeow.MediaAudio)
 		if err != nil {
 			return TgReplyWithErrorByContext(b, c, "Failed to upload audio to WhatsApp", err)
 		}
@@ -584,10 +593,10 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				URL:           proto.String(uploadedAudio.URL),
 				DirectPath:    proto.String(uploadedAudio.DirectPath),
 				MediaKey:      uploadedAudio.MediaKey,
-				Mimetype:      proto.String(msgToForward.Audio.MimeType),
+				Mimetype:      proto.String("audio/ogg; codecs=opus"),
 				FileEncSHA256: uploadedAudio.FileEncSHA256,
 				FileSHA256:    uploadedAudio.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(audioBytes))),
+				FileLength:    proto.Uint64(uint64(len(convertedAudioBytes))),
 				Seconds:       proto.Uint32(uint32(msgToForward.Audio.Duration)),
 				PTT:           proto.Bool(false),
 				ContextInfo:   &waE2E.ContextInfo{},
@@ -638,7 +647,16 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 			return TgReplyWithErrorByContext(b, c, "Failed to download voice from Telegram", err)
 		}
 
-		uploadedVoice, err := waClient.Upload(context.Background(), voiceBytes, whatsmeow.MediaAudio)
+		// Convert voice note to a WhatsApp-compatible format
+		convertedVoiceBytes, err := ConvertAudioToWhatsAppFormat(voiceBytes, c.UpdateId)
+		if err != nil {
+			logger.Warn("failed to convert voice to WhatsApp format, using original",
+				zap.Error(err),
+			)
+			convertedVoiceBytes = voiceBytes
+		}
+
+		uploadedVoice, err := waClient.Upload(context.Background(), convertedVoiceBytes, whatsmeow.MediaAudio)
 		if err != nil {
 			return TgReplyWithErrorByContext(b, c, "Failed to upload voice to WhatsApp", err)
 		}
@@ -651,7 +669,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				Mimetype:      proto.String("audio/ogg; codecs=opus"),
 				FileEncSHA256: uploadedVoice.FileEncSHA256,
 				FileSHA256:    uploadedVoice.FileSHA256,
-				FileLength:    proto.Uint64(uint64(len(voiceBytes))),
+				FileLength:    proto.Uint64(uint64(len(convertedVoiceBytes))),
 				Seconds:       proto.Uint32(uint32(msgToForward.Voice.Duration)),
 				PTT:           proto.Bool(true),
 				ContextInfo:   &waE2E.ContextInfo{},
