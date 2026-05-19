@@ -11,20 +11,55 @@ on:
       - go.sum
       - gomod2nix.toml
       - flake.nix
-      - nix/packages/*.nix
+      - flake.lock
+      - nix/pkgs/*.nix
   workflow_dispatch:
 
 jobs:
   x86_64-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-    - uses: actions/checkout@v4
-    - uses: cachix/install-nix-action@v25
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-    - uses: cachix/cachix-action@v14
-      with:
-        name: watgbridge
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - run: |
-        nix build --accept-flake-config -L .#packages.x86_64-linux.watgbridge
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - uses: cachix/cachix-action@v14
+        with:
+          name: watgbridge
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Build and push x86_64-linux package
+        run: |
+          nix build --accept-flake-config -L .#packages.x86_64-linux.watgbridge
+          out_path=$(readlink -f ./result)
+          echo "Built output: $out_path"
+          nix path-info -r "$out_path" | tee /tmp/watgbridge-x86_64-linux-closure | cachix push watgbridge
+          nix path-info --store https://watgbridge.cachix.org "$out_path"
+
+  aarch64-linux:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - uses: cachix/cachix-action@v14
+        with:
+          name: watgbridge
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: true
+
+      - name: Build and push aarch64-linux package
+        run: |
+          nix build --accept-flake-config -L .#packages.aarch64-linux.watgbridge
+          out_path=$(readlink -f ./result)
+          echo "Built output: $out_path"
+          nix path-info -r "$out_path" | tee /tmp/watgbridge-aarch64-linux-closure | cachix push watgbridge
+          nix path-info --store https://watgbridge.cachix.org "$out_path"
