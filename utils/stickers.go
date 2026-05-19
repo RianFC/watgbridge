@@ -11,6 +11,7 @@ import (
 	"image/draw"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"watgbridge/state"
 
@@ -117,9 +118,9 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 	var (
 		logger = state.State.Logger
 
-		currPath   = path.Join("downloads", updateId)
-		inputPath  = path.Join(currPath, "input.webp")
-		outputPath = path.Join(currPath, "output.webm")
+		currPath   = filepath.Join("downloads", updateId)
+		inputPath  = filepath.Join(currPath, "input.webp")
+		outputPath = filepath.Join(currPath, "output.webm")
 	)
 	defer logger.Sync()
 
@@ -146,7 +147,7 @@ func AnimatedWebpConvertToWebm(inputData []byte, updateId string) ([]byte, error
 	)
 
 	// First convert WebP to GIF using ImageMagick (which handles animated WebP better)
-	tempGifPath := path.Join(currPath, "temp.gif")
+	tempGifPath := filepath.Join(currPath, "temp.gif")
 
 	convertCmd := exec.Command("convert",
 		inputPath,
