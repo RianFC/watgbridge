@@ -21,6 +21,9 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/proto/waCommon"
+    "google.golang.org/protobuf/proto"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
 	waTypes "go.mau.fi/whatsmeow/types"
@@ -45,6 +48,15 @@ func AddTelegramHandlers() {
 			return msg.Chat.Id == cfg.Telegram.TargetChatID
 		}, BridgeTelegramToWhatsAppHandler,
 	), DispatcherForwardHandlerGroup)
+
+	// Handle edited messages from Telegram and mirror edits to WhatsApp
+	// Some versions of gotgbot may not expose a NewEditedMessage helper,
+	// so use NewMessage with an EditDate check to catch edited messages.
+	dispatcher.AddHandlerToGroup(handlers.NewMessage(
+		func(msg *gotgbot.Message) bool {
+			return msg.Chat.Id == cfg.Telegram.TargetChatID && msg.EditDate != 0
+		}, BridgeTelegramEditedToWhatsAppHandler,
+	).SetAllowEdited(true), DispatcherForwardHandlerGroup)
 
 	commands = append(commands,
 		waTgBridgeCommand{
@@ -221,6 +233,68 @@ func BridgeTelegramToWhatsAppHandler(b *gotgbot.Bot, c *ext.Context) error {
 	waChatJID, _ := utils.WaParseJID(waChatID)
 
 	return utils.TgSendToWhatsApp(b, c, msgToForward, msgToReplyTo, waChatJID, participantID, stanzaID, msgToReplyTo != nil && msgToReplyTo.ForumTopicCreated == nil)
+}
+
+// BridgeTelegramEditedToWhatsAppHandler handles edited Telegram messages and mirrors the edit to WhatsApp
+func BridgeTelegramEditedToWhatsAppHandler(b *gotgbot.Bot, c *ext.Context) error {
+	if !utils.TgUpdateIsAuthorized(b, c) {
+		return nil
+	}
+
+	var (
+		waClient     = state.State.WhatsAppClient
+		msgEdited    = c.EffectiveMessage
+	)
+
+	// Find corresponding WhatsApp message id and chat
+	stanzaID, participantID, waChatID, err := database.MsgIdGetWaFromTg(c.EffectiveChat.Id, msgEdited.MessageId, msgEdited.MessageThreadId)
+	if err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Failed to retrieve mapping from database", err)
+	} else if stanzaID == "" {
+		// No mapping found - nothing to edit on WhatsApp
+		return nil
+	}
+
+	// Determine edited text (caption preferred)
+	var editedText string
+	if msgEdited.Caption != "" {
+		editedText = msgEdited.Caption
+	} else {
+		editedText = msgEdited.Text
+	}
+
+	if editedText == "" {
+		// Nothing meaningful to edit
+		return nil
+	}
+
+	// Build edited message payload
+	editedMsg := &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: proto.String(editedText),
+		},
+	}
+
+	protocolMsg := &waE2E.Message{
+		ProtocolMessage: &waE2E.ProtocolMessage{
+			Type: waE2E.ProtocolMessage_MESSAGE_EDIT.Enum(),
+			Key: &waCommon.MessageKey{
+				ID:        proto.String(stanzaID),
+				RemoteJID: proto.String(waChatID),
+				FromMe:    proto.Bool(participantID == waClient.Store.ID.String()),
+			},
+			EditedMessage: editedMsg,
+		},
+	}
+
+	waChatJid, _ := utils.WaParseJID(waChatID)
+
+	_, err = waClient.SendMessage(context.Background(), waChatJid, protocolMsg)
+	if err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Failed to send edit to WhatsApp", err)
+	}
+
+	return nil
 }
 
 func StartCommandHandler(b *gotgbot.Bot, c *ext.Context) error {
