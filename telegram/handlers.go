@@ -21,13 +21,13 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/proto/waCommon"
-    "google.golang.org/protobuf/proto"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
+	"go.mau.fi/whatsmeow/proto/waCommon"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
 )
 
 type waTgBridgeCommand struct {
@@ -118,6 +118,10 @@ func AddTelegramHandlers() {
 		waTgBridgeCommand{
 			handlers.NewCommand("send", SendToWhatsAppHandler),
 			"Send a message to WhatsApp",
+		},
+		waTgBridgeCommand{
+			handlers.NewCommand("info", MessageInfoCommandHandler),
+			"Show delivery/read info for a replied bridged message",
 		},
 		waTgBridgeCommand{
 			handlers.NewCommand("help", HelpCommandHandler),
@@ -242,8 +246,8 @@ func BridgeTelegramEditedToWhatsAppHandler(b *gotgbot.Bot, c *ext.Context) error
 	}
 
 	var (
-		waClient     = state.State.WhatsAppClient
-		msgEdited    = c.EffectiveMessage
+		waClient  = state.State.WhatsAppClient
+		msgEdited = c.EffectiveMessage
 	)
 
 	// Find corresponding WhatsApp message id and chat
@@ -400,6 +404,94 @@ func FindContactHandler(b *gotgbot.Bot, c *ext.Context) error {
 		return err
 	}
 	return nil
+}
+
+func MessageInfoCommandHandler(b *gotgbot.Bot, c *ext.Context) error {
+	if !utils.TgUpdateIsAuthorized(b, c) {
+		return nil
+	}
+
+	repliedMsg := c.EffectiveMessage.ReplyToMessage
+	if repliedMsg == nil {
+		_, err := utils.TgReplyTextByContext(b, c, "Reply to a bridged message and run /info", nil, false)
+		return err
+	}
+
+	stanzaID, _, waChatID, err := database.MsgIdGetWaFromTg(c.EffectiveChat.Id, repliedMsg.MessageId, repliedMsg.MessageThreadId)
+	if err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Failed to fetch message mapping", err)
+	}
+	if stanzaID == "" || waChatID == "" {
+		_, err := utils.TgReplyTextByContext(b, c, "No WhatsApp mapping found for the replied message", nil, false)
+		return err
+	}
+
+	receipts, err := database.MsgReceiptGetByMsg(stanzaID, waChatID)
+	if err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Failed to fetch message receipts", err)
+	}
+
+	if len(receipts) == 0 {
+		_, err = utils.TgReplyTextByContext(b, c, "No delivery/read updates yet for this message", nil, false)
+		return err
+	}
+
+	waSelfJID := ""
+	if state.State.WhatsAppClient != nil && state.State.WhatsAppClient.Store != nil {
+		waSelfJID = state.State.WhatsAppClient.Store.ID.String()
+	}
+
+	delivered := []string{}
+	read := []string{}
+	other := []string{}
+
+	for _, receipt := range receipts {
+		displayName := receipt.ParticipantId
+		if receipt.ParticipantId == waSelfJID {
+			displayName = "Você"
+		}
+		participantJID, ok := utils.WaParseJID(receipt.ParticipantId)
+		if ok {
+			contactName := utils.WaGetContactName(participantJID)
+			if contactName != "" {
+				displayName = fmt.Sprintf("%s", contactName)
+				if receipt.ParticipantId != waSelfJID {
+					displayName = fmt.Sprintf("%s", contactName)
+				}
+			}
+		}
+
+		timeText := html.EscapeString(receipt.ReceiptTime.In(state.State.LocalLocation).Format(state.State.Config.TimeFormat))
+		jidText := ""
+		if receipt.ParticipantId != waSelfJID {
+			jidText = fmt.Sprintf(" <code>%s</code>", html.EscapeString(receipt.ParticipantId))
+		}
+		entry := fmt.Sprintf("• <b>%s</b>%s — %s", html.EscapeString(displayName), jidText, timeText)
+
+		switch waTypes.ReceiptType(receipt.ReceiptType) {
+		case waTypes.ReceiptTypeRead, waTypes.ReceiptTypeReadSelf:
+			read = append(read, entry)
+		case waTypes.ReceiptTypeDelivered:
+			delivered = append(delivered, entry)
+		default:
+			other = append(other, fmt.Sprintf("%s [type=%s]", entry, html.EscapeString(receipt.ReceiptType)))
+		}
+	}
+
+	infoText := "<b>Message info</b>\n"
+	infoText += fmt.Sprintf("<i>%d updates registrados</i>\n", len(receipts))
+	if len(read) > 0 {
+		infoText += fmt.Sprintf("\n<b>Seen</b> (%d)\n%s\n", len(read), strings.Join(read, "\n"))
+	}
+	if len(delivered) > 0 {
+		infoText += fmt.Sprintf("\n<b>Delivered</b> (%d)\n%s\n", len(delivered), strings.Join(delivered, "\n"))
+	}
+	if len(other) > 0 {
+		infoText += fmt.Sprintf("\n<b>Other updates</b> (%d)\n%s\n", len(other), strings.Join(other, "\n"))
+	}
+
+	_, err = utils.TgReplyTextByContext(b, c, infoText, nil, false)
+	return err
 }
 
 func UpdateAndRestartHandler(b *gotgbot.Bot, c *ext.Context) error {

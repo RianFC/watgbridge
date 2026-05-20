@@ -1505,6 +1505,13 @@ func CallOfferEventHandler(v *events.CallOffer) {
 }
 
 func ReceiptEventHandler(v *events.Receipt) {
+	participantID := v.Sender.ToNonAD().String()
+	for _, msgId := range v.MessageIDs {
+		if participantID != "" {
+			database.MsgReceiptUpsert(msgId, v.Chat.ToNonAD().String(), participantID, v.Type, v.Timestamp)
+		}
+	}
+
 	if v.Type == waTypes.ReceiptTypeReadSelf {
 		for _, msgId := range v.MessageIDs {
 			database.MsgIdMarkRead(v.Chat.String(), msgId)
