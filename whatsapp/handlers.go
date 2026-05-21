@@ -1506,16 +1506,103 @@ func CallOfferEventHandler(v *events.CallOffer) {
 
 func ReceiptEventHandler(v *events.Receipt) {
 	participantID := v.Sender.ToNonAD().String()
+	waChatID := v.Chat.ToNonAD().String()
+	cfg := state.State.Config
+	waClient := state.State.WhatsAppClient
+	tgBot := state.State.TelegramBot
+
 	for _, msgId := range v.MessageIDs {
 		if participantID != "" {
-			database.MsgReceiptUpsert(msgId, v.Chat.ToNonAD().String(), participantID, v.Type, v.Timestamp)
+			database.MsgReceiptUpsert(msgId, waChatID, participantID, v.Type, v.Timestamp)
 		}
 	}
 
 	if v.Type == waTypes.ReceiptTypeReadSelf {
 		for _, msgId := range v.MessageIDs {
-			database.MsgIdMarkRead(v.Chat.String(), msgId)
+			database.MsgIdMarkRead(waChatID, msgId)
 		}
+	}
+
+	if !cfg.Telegram.AutoReactWhenAllRead || waClient == nil || tgBot == nil {
+		return
+	}
+
+	if v.Type != waTypes.ReceiptTypeRead {
+		return
+	}
+
+	if !v.IsGroup && participantID == "" {
+		return
+	}
+
+	for _, msgId := range v.MessageIDs {
+		autoReacted, err := database.MsgIdHasAutoReacted(waChatID, msgId)
+		if err != nil || autoReacted {
+			continue
+		}
+
+		tgChatId, _, tgMsgId, err := database.MsgIdGetTgFromWa(msgId, waChatID)
+		if err != nil || tgChatId == 0 || tgMsgId == 0 {
+			continue
+		}
+
+		expectedReaders := 1
+		if v.IsGroup {
+			groupInfo, err := waClient.GetGroupInfo(context.Background(), v.Chat.ToNonAD())
+			if err != nil {
+				continue
+			}
+
+			expectedReaders = 0
+			for _, participant := range groupInfo.Participants {
+				if participant.JID.ToNonAD().String() == waClient.Store.ID.ToNonAD().String() {
+					continue
+				}
+				expectedReaders++
+			}
+		}
+
+		receipts, err := database.MsgReceiptGetByMsg(msgId, waChatID)
+		if err != nil {
+			continue
+		}
+
+		readers := map[string]struct{}{}
+		for _, receipt := range receipts {
+			if receipt.ReceiptType != string(waTypes.ReceiptTypeRead) {
+				continue
+			}
+			readers[receipt.ParticipantId] = struct{}{}
+		}
+
+		if len(readers) < expectedReaders {
+			continue
+		}
+
+		_, err = tgBot.SetMessageReaction(
+			tgChatId,
+			tgMsgId,
+			&gotgbot.SetMessageReactionOpts{Reaction: []gotgbot.ReactionType{gotgbot.ReactionTypeEmoji{Emoji: "👀"}}},
+		)
+		if err != nil {
+			continue
+		}
+
+		if cfg.Telegram.AutoReactRemoveAfter > 0 {
+			go func(chatID int64, messageID int64, delaySeconds int64) {
+				time.Sleep(time.Duration(delaySeconds) * time.Second)
+				if state.State.TelegramBot == nil {
+					return
+				}
+				state.State.TelegramBot.SetMessageReaction(
+					chatID,
+					messageID,
+					&gotgbot.SetMessageReactionOpts{Reaction: []gotgbot.ReactionType{}},
+				)
+			}(tgChatId, tgMsgId, cfg.Telegram.AutoReactRemoveAfter)
+		}
+
+		database.MsgIdMarkAutoReacted(waChatID, msgId)
 	}
 }
 

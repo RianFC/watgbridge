@@ -19,6 +19,7 @@ type MsgIdPair struct {
 	TgMsgId    int64
 
 	MarkRead sql.NullBool
+	AutoReacted bool
 }
 
 type ChatThreadPair struct {

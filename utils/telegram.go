@@ -1132,6 +1132,17 @@ func SendMessageConfirmation(
 ) {
 	switch cfg.Telegram.ConfirmationType {
 	case "emoji":
+		if cfg.Telegram.AutoReactWhenAllRead {
+			msg, err := TgReplyTextByContext(b, c, "Successfully sent", revokeKeyboard, cfg.Telegram.SilentConfirmation)
+			if err == nil {
+				go func(_b *gotgbot.Bot, _m *gotgbot.Message) {
+					time.Sleep(15 * time.Second)
+					_b.DeleteMessage(_m.Chat.Id, _m.MessageId, &gotgbot.DeleteMessageOpts{})
+				}(b, msg)
+			}
+			return
+		}
+
 		b.SetMessageReaction(
 			msgToForward.Chat.Id,
 			msgToForward.MessageId,

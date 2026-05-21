@@ -31,6 +31,9 @@ telegram:
   spoiler_as_viewonce: true               # If set to true, then all the spoiler files will be sent as view-once messages
 
   reactions: true                         # If set to true, will send you new text messages whenever a user reacts to your message or revokes their reaction.
+  auto_react_when_all_read: true          # If set to true, the bot reacts to bridged messages once everyone in the chat has read them
+  auto_react_remove_after_seconds: 0      # If greater than 0, the auto reaction is removed after this many seconds
+                                          # When this is enabled, emoji confirmations fall back to text to avoid reaction conflicts
 
 backup:
   mode: none                             # none = disabled | private = sends to owner_id | thread = creates/reuses a single topic in target_chat_id, sends backup there, and keeps it locked

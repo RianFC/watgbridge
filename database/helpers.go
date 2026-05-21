@@ -106,6 +106,26 @@ func MsgIdMarkRead(waChatId, waMsgId string) error {
 	return nil
 }
 
+func MsgIdHasAutoReacted(waChatId, waMsgId string) (bool, error) {
+	db := state.State.Database
+
+	var bridgePair MsgIdPair
+	res := db.Where("id = ? AND wa_chat_id = ?", waMsgId, waChatId).Find(&bridgePair)
+	if res.Error != nil {
+		return false, res.Error
+	}
+
+	return bridgePair.AutoReacted, nil
+}
+
+func MsgIdMarkAutoReacted(waChatId, waMsgId string) error {
+	db := state.State.Database
+
+	return db.Model(&MsgIdPair{}).
+		Where("id = ? AND wa_chat_id = ?", waMsgId, waChatId).
+		Update("auto_reacted", true).Error
+}
+
 func MsgIdDeletePair(tgChatId, tgMsgId int64) error {
 
 	db := state.State.Database
