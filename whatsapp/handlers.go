@@ -1747,41 +1747,8 @@ func PictureEventHandler(v *events.Picture) {
 	)
 	defer logger.Sync()
 
-	var (
-		tgThreadId  int64       = 0
-		threadFound bool        = false
-		err         error       = nil
-		pn          waTypes.JID = waTypes.EmptyJID
-	)
-
-	if v.JID.Server == waTypes.HiddenUserServer {
-		pn, err = waClient.Store.LIDs.GetPNForLID(context.Background(), v.JID.ToNonAD())
-		if err == nil {
-			tgThreadId, threadFound, err = database.ChatThreadGetTgFromWa(pn.String(), cfg.Telegram.TargetChatID)
-		}
-	} else {
-		tgThreadId, threadFound, err = database.ChatThreadGetTgFromWa(v.JID.ToNonAD().String(), cfg.Telegram.TargetChatID)
-	}
-	if err != nil {
-		logger.Warn(
-			"failed to find thread for a WhatsApp chat (handling Picture event)",
-			zap.String("chat", v.JID.String()),
-			zap.Error(err),
-		)
-		return
-	}
-	if !threadFound || tgThreadId == 0 {
-		logger.Warn(
-			"no thread found for a WhatsApp chat (handling Picture event)",
-			zap.String("chat", v.JID.String()),
-		)
-		if !cfg.WhatsApp.CreateThreadForInfoUpdates {
-			return
-		}
-	}
-
 	if v.JID.Server == waTypes.GroupServer {
-		tgThreadId, err = utils.TgGetOrMakeThreadFromWa(v.JID.ToNonAD(), cfg.Telegram.TargetChatID, utils.WaGetGroupName(v.JID))
+		tgThreadId, err := utils.TgGetOrMakeThreadFromWa(v.JID.ToNonAD(), cfg.Telegram.TargetChatID, utils.WaGetGroupName(v.JID))
 		if err != nil {
 			logger.Warn(
 				"failed to create a new thread for a WhatsApp chat (handling Picture event)",
@@ -1833,8 +1800,23 @@ func PictureEventHandler(v *events.Picture) {
 				return
 			}
 		}
-	} else if v.JID.Server == waTypes.DefaultUserServer {
-		tgThreadId, err = utils.TgGetOrMakeThreadFromWa(v.JID.ToNonAD(), cfg.Telegram.TargetChatID, utils.WaGetContactName(v.JID.ToNonAD()))
+	} else if v.JID.Server == waTypes.DefaultUserServer || v.JID.Server == waTypes.HiddenUserServer {
+		targetJID := v.JID.ToNonAD()
+		threadName := utils.WaGetContactName(targetJID)
+
+		if v.JID.Server == waTypes.HiddenUserServer {
+			pn, pnErr := waClient.Store.LIDs.GetPNForLID(context.Background(), v.JID.ToNonAD())
+			if pnErr == nil && pn.User != "" {
+				targetJID = pn.ToNonAD()
+				threadName = utils.WaGetContactName(targetJID)
+			}
+		}
+
+		if threadName == "" {
+			threadName = targetJID.String()
+		}
+
+		tgThreadId, err := utils.TgGetOrMakeThreadFromWa(targetJID, cfg.Telegram.TargetChatID, threadName)
 		if err != nil {
 			logger.Warn(
 				"failed to create a new thread for a WhatsApp chat (handling Picture event)",
