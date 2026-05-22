@@ -16,6 +16,7 @@ import (
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
+	"go.mau.fi/whatsmeow/proto/waWa6"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -75,17 +76,57 @@ func NewWhatsAppClient() error {
 	waDatabaseLogger := &whatsmeowLogger{logger: logger.Sugar().Named("WhatsMeow_Database")}
 	waClientLogger := &whatsmeowLogger{logger: logger.Sugar().Named("WhatsMeow_Client")}
 
-	store.DeviceProps.Os = proto.String(state.State.Config.WhatsApp.SessionName)
-	store.DeviceProps.RequireFullSync = proto.Bool(false)
-	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_DESKTOP.Enum()
-	store.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
-		FullSyncDaysLimit:              proto.Uint32(0),
-		FullSyncSizeMbLimit:            proto.Uint32(0),
-		StorageQuotaMb:                 proto.Uint32(0),
-		RecentSyncDaysLimit:            proto.Uint32(0),
-		SupportCallLogHistory:          proto.Bool(false),
-		SupportBotUserAgentChatHistory: proto.Bool(false),
-		SupportCagReactionsAndPolls:    proto.Bool(false),
+	// Configure device as Android if enabled
+	if cfg.WhatsApp.EmulateAndroidPhone {
+		store.DeviceProps.Os = proto.String("Android")
+		store.DeviceProps.RequireFullSync = proto.Bool(false)
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
+		store.DeviceProps.Version = &waCompanionReg.DeviceProps_AppVersion{
+			Primary:    proto.Uint32(2),
+			Secondary:  proto.Uint32(23),
+			Tertiary:   proto.Uint32(9),
+			Quaternary: proto.Uint32(0),
+		}
+		store.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
+			FullSyncDaysLimit:              proto.Uint32(0),
+			FullSyncSizeMbLimit:            proto.Uint32(0),
+			StorageQuotaMb:                 proto.Uint32(0),
+			RecentSyncDaysLimit:            proto.Uint32(0),
+			SupportCallLogHistory:          proto.Bool(false),
+			SupportBotUserAgentChatHistory: proto.Bool(false),
+			SupportCagReactionsAndPolls:    proto.Bool(false),
+		}
+
+		// Configure client payload as Android
+		store.BaseClientPayload.UserAgent.Platform = waWa6.ClientPayload_UserAgent_ANDROID.Enum()
+		store.BaseClientPayload.UserAgent.Device = proto.String("SM-G900F")
+		store.BaseClientPayload.UserAgent.Manufacturer = proto.String("Samsung")
+		store.BaseClientPayload.UserAgent.OsVersion = proto.String("14")
+		waVersion := store.GetWAVersion()
+		store.BaseClientPayload.UserAgent.AppVersion = &waWa6.ClientPayload_UserAgent_AppVersion{
+			Primary:   proto.Uint32(uint32(waVersion[0])),
+			Secondary: proto.Uint32(uint32(waVersion[1])),
+			Tertiary:  proto.Uint32(uint32(waVersion[2])),
+		}
+		store.BaseClientPayload.WebInfo = nil // Remove WebInfo as it's only for web
+
+		logger.Info("WhatsApp client configured to emulate Android phone")
+	} else {
+		// Keep default Web configuration
+		store.DeviceProps.Os = proto.String(state.State.Config.WhatsApp.SessionName)
+		store.DeviceProps.RequireFullSync = proto.Bool(false)
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_DESKTOP.Enum()
+		store.DeviceProps.HistorySyncConfig = &waCompanionReg.DeviceProps_HistorySyncConfig{
+			FullSyncDaysLimit:              proto.Uint32(0),
+			FullSyncSizeMbLimit:            proto.Uint32(0),
+			StorageQuotaMb:                 proto.Uint32(0),
+			RecentSyncDaysLimit:            proto.Uint32(0),
+			SupportCallLogHistory:          proto.Bool(false),
+			SupportBotUserAgentChatHistory: proto.Bool(false),
+			SupportCagReactionsAndPolls:    proto.Bool(false),
+		}
+
+		logger.Info("WhatsApp client configured as Web client")
 	}
 
 	container, err := sqlstore.New(context.Background(), state.State.Config.WhatsApp.LoginDatabase.Type,
