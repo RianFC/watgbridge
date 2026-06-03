@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -131,6 +132,125 @@ func TgSendTextById(b *gotgbot.Bot, chatId int64, threadId int64, text string) e
 	return err
 }
 
+func TgMessageTextForWhatsApp(msg *gotgbot.Message) string {
+	if msg == nil {
+		return ""
+	}
+
+	if msg.Text != "" {
+		return tgTextWithWhatsAppFormatting(msg.Text, msg.ParseEntities())
+	}
+
+	if msg.Caption != "" {
+		return tgTextWithWhatsAppFormatting(msg.Caption, msg.ParseCaptionEntities())
+	}
+
+	return ""
+}
+
+func tgTextWithWhatsAppFormatting(text string, entities []gotgbot.ParsedMessageEntity) string {
+	if len(entities) == 0 {
+		return text
+	}
+
+	sortedEntities := append([]gotgbot.ParsedMessageEntity(nil), entities...)
+	sort.SliceStable(sortedEntities, func(i, j int) bool {
+		if sortedEntities[i].Offset == sortedEntities[j].Offset {
+			return sortedEntities[i].Length > sortedEntities[j].Length
+		}
+		return sortedEntities[i].Offset < sortedEntities[j].Offset
+	})
+
+	return tgFormatWhatsAppTextRange(text, 0, int64(len(text)), sortedEntities)
+}
+
+func tgFormatWhatsAppTextRange(text string, start, end int64, entities []gotgbot.ParsedMessageEntity) string {
+	if start >= end {
+		return ""
+	}
+
+	if len(entities) == 0 {
+		return text[int(start):int(end)]
+	}
+
+	var builder strings.Builder
+	cursor := start
+	for _, entity := range tgUpperEntities(entities) {
+		entityEnd := entity.Offset + entity.Length
+		if entity.Offset >= end {
+			break
+		}
+		if entityEnd > end {
+			continue
+		}
+		if entity.Offset < cursor {
+			continue
+		}
+
+		if entity.Offset > cursor {
+			builder.WriteString(text[int(cursor):int(entity.Offset)])
+		}
+
+		inner := tgFormatWhatsAppTextRange(text, entity.Offset, entityEnd, tgChildEntities(entity, entities))
+		builder.WriteString(tgWhatsAppEntityWrapper(entity.Type, inner))
+		cursor = entityEnd
+	}
+
+	if cursor < end {
+		builder.WriteString(text[int(cursor):int(end)])
+	}
+
+	return builder.String()
+}
+
+func tgUpperEntities(entities []gotgbot.ParsedMessageEntity) []gotgbot.ParsedMessageEntity {
+	prev := int64(0)
+	uppers := make([]gotgbot.ParsedMessageEntity, 0, len(entities))
+	for _, entity := range entities {
+		if entity.Offset < prev {
+			continue
+		}
+		uppers = append(uppers, entity)
+		prev = entity.Offset + entity.Length
+	}
+	return uppers
+}
+
+func tgChildEntities(entity gotgbot.ParsedMessageEntity, entities []gotgbot.ParsedMessageEntity) []gotgbot.ParsedMessageEntity {
+	end := entity.Offset + entity.Length
+	children := make([]gotgbot.ParsedMessageEntity, 0, len(entities))
+	for _, child := range entities {
+		if child.Offset < entity.Offset || child == entity {
+			continue
+		}
+		if child.Offset >= end {
+			break
+		}
+		if child.Offset+child.Length > end {
+			continue
+		}
+		children = append(children, child)
+	}
+	return children
+}
+
+func tgWhatsAppEntityWrapper(entityType, text string) string {
+	switch entityType {
+	case "bold":
+		return "*" + text + "*"
+	case "italic":
+		return "_" + text + "_"
+	case "strikethrough":
+		return "~" + text + "~"
+	case "code":
+		return "`" + text + "`"
+	case "pre":
+		return "```" + text + "```"
+	default:
+		return text
+	}
+}
+
 func TgUpdateIsAuthorized(b *gotgbot.Bot, c *ext.Context) bool {
 	var (
 		cfg         = state.State.Config
@@ -200,6 +320,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 		waClient = state.State.WhatsAppClient
 		mentions = []string{}
 	)
+	formattedText := TgMessageTextForWhatsApp(msgToForward)
 
 	var entities []gotgbot.ParsedMessageEntity
 	if len(msgToForward.Entities) > 0 {
@@ -310,7 +431,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		msgToSend := &waE2E.Message{
 			ImageMessage: &waE2E.ImageMessage{
-				Caption:           proto.String(msgToForward.Caption),
+				Caption:           proto.String(formattedText),
 				URL:               proto.String(uploadedImage.URL),
 				DirectPath:        proto.String(uploadedImage.DirectPath),
 				MediaKey:          uploadedImage.MediaKey,
@@ -378,7 +499,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		msgToSend := &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
-				Caption:       proto.String(msgToForward.Caption),
+				Caption:       proto.String(formattedText),
 				URL:           proto.String(uploadedVideo.URL),
 				DirectPath:    proto.String(uploadedVideo.DirectPath),
 				MediaKey:      uploadedVideo.MediaKey,
@@ -446,7 +567,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		msgToSend := &waE2E.Message{
 			PtvMessage: &waE2E.VideoMessage{
-				Caption:       proto.String(msgToForward.Caption),
+				Caption:       proto.String(formattedText),
 				URL:           proto.String(uploadedVideo.URL),
 				DirectPath:    proto.String(uploadedVideo.DirectPath),
 				MediaKey:      uploadedVideo.MediaKey,
@@ -512,7 +633,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		msgToSend := &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
-				Caption:        proto.String(msgToForward.Caption),
+				Caption:        proto.String(formattedText),
 				URL:            proto.String(uploadedAnimation.URL),
 				DirectPath:     proto.String(uploadedAnimation.DirectPath),
 				MediaKey:       uploadedAnimation.MediaKey,
@@ -727,7 +848,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 
 		msgToSend := &waE2E.Message{
 			DocumentMessage: &waE2E.DocumentMessage{
-				Caption:       proto.String(msgToForward.Caption),
+				Caption:       proto.String(formattedText),
 				Title:         proto.String(msgToForward.Document.FileName),
 				FileName:      proto.String(msgToForward.Document.FileName),
 				URL:           proto.String(uploadedDocument.URL),
@@ -1021,7 +1142,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 		msgToSend := &waE2E.Message{}
 		if isReply || len(mentions) > 0 || isEphemeral {
 			msgToSend.ExtendedTextMessage = &waE2E.ExtendedTextMessage{
-				Text: proto.String(msgToForward.Text),
+				Text: proto.String(formattedText),
 				ContextInfo: &waE2E.ContextInfo{
 					StanzaID:      proto.String(stanzaId),
 					Participant:   proto.String(participant),
@@ -1035,7 +1156,7 @@ func TgSendToWhatsApp(b *gotgbot.Bot, c *ext.Context,
 				msgToSend.ExtendedTextMessage.ContextInfo.Expiration = &ephemeralTimer
 			}
 		} else {
-			msgToSend.Conversation = proto.String(msgToForward.Text)
+			msgToSend.Conversation = proto.String(formattedText)
 		}
 
 		sentMsg, err := waClient.SendMessage(context.Background(), waChatJID, msgToSend)
