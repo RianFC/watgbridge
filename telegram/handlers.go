@@ -72,6 +72,10 @@ func AddTelegramHandlers() {
 			"Fuzzy find contact JIDs from names in WhatsApp",
 		},
 		waTgBridgeCommand{
+			handlers.NewCommand("findgroupmembers", FindGroupMembersHandler),
+			"List WhatsApp group members with their phone numbers",
+		},
+		waTgBridgeCommand{
 			handlers.NewCommand("revoke", RevokeCommandHandler),
 			"Revoke a message from WhatsApp",
 		},
@@ -394,6 +398,68 @@ func FindContactHandler(b *gotgbot.Bot, c *ext.Context) error {
 
 		if len(outputString) >= 1800 {
 			utils.TgReplyTextByContext(b, c, outputString, nil, false)
+			time.Sleep(500 * time.Millisecond)
+			outputString = ""
+		}
+	}
+
+	if len(outputString) > 0 {
+		_, err = utils.TgReplyTextByContext(b, c, outputString, nil, false)
+		return err
+	}
+	return nil
+}
+
+func FindGroupMembersHandler(b *gotgbot.Bot, c *ext.Context) error {
+	if !utils.TgUpdateIsAuthorized(b, c) {
+		return nil
+	}
+
+	var groupJID waTypes.JID
+	args := c.Args()
+	if len(args) > 1 {
+		parsedGroupJID, ok := utils.WaParseJID(args[1])
+		if !ok {
+			_, err := utils.TgReplyTextByContext(b, c, "Usage : <code>"+html.EscapeString("/findgroupmembers <group_id>")+"</code>", nil, false)
+			return err
+		}
+		groupJID = parsedGroupJID
+	} else {
+		waChatID, err := database.ChatThreadGetWaFromTg(c.EffectiveChat.Id, c.EffectiveMessage.MessageThreadId)
+		if err != nil {
+			return utils.TgReplyWithErrorByContext(b, c, "Failed to resolve the current group mapping", err)
+		}
+		if waChatID == "" {
+			_, err := utils.TgReplyTextByContext(b, c, "Usage : <code>"+html.EscapeString("/findgroupmembers <group_id>")+"</code>", nil, false)
+			return err
+		}
+
+		groupJID, _ = utils.WaParseJID(waChatID)
+	}
+
+	groupInfo, err := state.State.WhatsAppClient.GetGroupInfo(context.Background(), groupJID)
+	if err != nil {
+		return utils.TgReplyWithErrorByContext(b, c, "Failed to get group info", err)
+	}
+
+	outputString := fmt.Sprintf("Group members for <i>%s</i>:\n\n", html.EscapeString(groupInfo.Name))
+	for _, participant := range groupInfo.Participants {
+		participantJID := participant.JID.ToNonAD()
+		memberName := utils.WaGetContactName(participantJID)
+		if memberName == "" {
+			memberName = participantJID.User
+		}
+
+		outputString += fmt.Sprintf("- <i>%s</i> [ <code>%s</code> ]\n",
+			html.EscapeString(memberName),
+			html.EscapeString(participantJID.String()),
+		)
+
+		if len(outputString) >= 1800 {
+			_, err = utils.TgReplyTextByContext(b, c, outputString, nil, false)
+			if err != nil {
+				return err
+			}
 			time.Sleep(500 * time.Millisecond)
 			outputString = ""
 		}
