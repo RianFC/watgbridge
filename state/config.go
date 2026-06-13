@@ -38,6 +38,7 @@ type Config struct {
 		SkipStartupMessage  bool    `yaml:"skip_startup_message"`
 		SpoilerViewOnce     bool    `yaml:"spoiler_as_viewonce"`
 		Reactions           bool    `yaml:"reactions"`
+		TagAllEnabled       bool    `yaml:"tag_all_enabled"`
 		AutoReactWhenAllRead bool   `yaml:"auto_react_when_all_read"`
 		AutoReactRemoveAfter int64  `yaml:"auto_react_remove_after_seconds"`
 	} `yaml:"telegram"`
