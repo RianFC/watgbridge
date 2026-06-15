@@ -60,70 +60,39 @@ PRs are welcome :)
 
 ## Docker
 
-### Using Published Container
+Before starting the container, copy `sample_config.yaml` to `config.yaml` and fill in the values you need. Keep these files in the same folder as the project so the bot can persist its state:
 
-> **Important:** Before running the container, make sure to download and configure the `config.yaml` file. You can use the `sample_config.yaml` as a template.
+- `config.yaml`
+- `gobot.sqlite.db`
+- `wawebstore.db`
 
-#### Pull and run the image from GitHub Container Registry
-
-**Using Docker:**
+Pull the image:
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/rianfc/watgbridge:latest
+docker pull ghcr.io/rianfc/watgbridge:last
+```
 
-# Run the container
+Run the container:
+
+```bash
 docker run -d \
   --name watgbridge \
+  --restart unless-stopped \
   -v $(pwd)/config.yaml:/go/src/watgbridge/config.yaml \
-  -v $(pwd)/downloads:/go/src/watgbridge/downloads \
-  ghcr.io/rianfc/watgbridge:latest
+  -v $(pwd)/gobot.sqlite.db:/go/src/watgbridge/gobot.sqlite.db \
+  -v $(pwd)/wawebstore.db:/go/src/watgbridge/wawebstore.db \
+  -v $(pwd)/.git:/go/src/watgbridge/.git \
+  ghcr.io/rianfc/watgbridge:last
 ```
 
-**Using Docker Compose:**
-
-Create a `docker-compose.yml` file:
-
-```yaml
-version: '3.8'
-
-services:
-  watgbridge:
-    image: ghcr.io/rianfc/watgbridge:latest
-    container_name: watgbridge
-    volumes:
-      - ./config.yaml:/go/src/watgbridge/config.yaml
-      - ./downloads:/go/src/watgbridge/downloads
-      - ./state:/go/src/watgbridge/state
-    restart: unless-stopped
-```
-
-Then run:
-
-```bash
-docker-compose up -d
-```
-
-**Check logs:**
+Check the logs with:
 
 ```bash
 docker logs -f watgbridge
 ```
 
-**Available tags:**
+To stop it, run:
 
-- `latest` - Latest version from main branch
-- `main` - Main branch
-- `vX.Y.Z` - Specific versions (when tags are created)
-
-### Building from Source
-
-- Ensure you have Docker and Docker Compose installed on your system.
-- Clone this repository anywhere and navigate to the cloned directory.
-- Copy `sample_config.yaml` to `config.yaml` and fill the values, there are comments to help you.
-- Run `docker-compose up -d` to start the application in detached mode.
-- On first run, it will show QR code for logging into WhatsApp that can be scanned by the WhatsApp app in `Linked devices`.
-- It is recommended to restart the bot after every few hours because WhatsApp likes to disconnect a lot. You can configure this in the `docker-compose.yml` file if needed.
-- **Warning:** If you change the name of the database being saved in memory, make sure to update the name in the `docker-compose.yml` file as well.
-- To restart the Docker container, run `docker-compose restart`.
-- To stop the Docker container, run `docker-compose down`.
+```bash
+docker stop watgbridge
+```

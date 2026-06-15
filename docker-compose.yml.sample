@@ -1,8 +1,9 @@
 services:
   watgbridge:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    #build:
+    #  context: .
+    #  dockerfile: Dockerfile
+    image: ghcr.io/wa-bridge/watgbridge:latest
     container_name: watgbridge
     volumes:
       - ./config.yaml:/go/src/watgbridge/config.yaml
@@ -10,6 +11,3 @@ services:
       - ./wawebstore.db:/go/src/watgbridge/wawebstore.db
       - ./.git:/go/src/watgbridge/.git
     restart: unless-stopped
-    environment:
-      - GIT_USER_NAME=$(git config --global user.name)
-      - GIT_USER_EMAIL=$(git config --global user.email)
