@@ -13,6 +13,8 @@ telegram:
   bot_token: 186779
   #api_url: http://localhost:8082        # Uncomment if you have a local bot API server running (for bypassing file size limits)
   self_hosted_api: false
+  send_images_as_file: false            # If set to true, WhatsApp images will be sent as documents to keep original quality
+  send_stickers_as_file: false          # If set to true, WhatsApp stickers will be sent as documents instead of stickers
   owner_id: 704338780
   sudo_users_id:
     - 704338780

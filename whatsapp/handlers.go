@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/http"
 	"strings"
 	"time"
 
@@ -515,6 +516,22 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 				}
 			}
 
+			if cfg.Telegram.SendImagesAsFile {
+				fileName := "image." + strings.Split(http.DetectContentType(imageBytes), "/")[1]
+				sentMsg, _ := tgBot.SendDocument(cfg.Telegram.TargetChatID, &gotgbot.FileReader{Name: fileName, Data: bytes.NewReader(imageBytes)}, &gotgbot.SendDocumentOpts{
+					Caption: bridgedText,
+					ReplyParameters: &gotgbot.ReplyParameters{
+						MessageId: replyToMsgId,
+					},
+					MessageThreadId: threadId,
+				})
+				if sentMsg.MessageId != 0 {
+					database.MsgIdAddNewPair(msgId, v.Info.MessageSource.Sender.String(), v.Info.Chat.String(),
+						cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
+				}
+				return
+			}
+
 			sentMsg, _ := tgBot.SendPhoto(cfg.Telegram.TargetChatID, &gotgbot.FileReader{Data: bytes.NewReader(imageBytes)}, &gotgbot.SendPhotoOpts{
 				Caption: bridgedText,
 				ReplyParameters: &gotgbot.ReplyParameters{
@@ -970,6 +987,34 @@ func MessageFromOthersEventHandler(text string, v *events.Message, isEdited bool
 				}
 				return
 			}
+
+			if cfg.Telegram.SendStickersAsFile {
+				stickerExt := "webp"
+				if mimeType := stickerMsg.GetMimetype(); mimeType != "" {
+					if _, ext, ok := strings.Cut(mimeType, "/"); ok && ext != "" {
+						stickerExt = ext
+					}
+				}
+
+				fileToSend := gotgbot.FileReader{
+					Name: "sticker." + stickerExt,
+					Data: bytes.NewReader(stickerBytes),
+				}
+
+				sentMsg, _ := tgBot.SendDocument(cfg.Telegram.TargetChatID, &fileToSend, &gotgbot.SendDocumentOpts{
+					ReplyParameters: &gotgbot.ReplyParameters{
+						MessageId: replyToMsgId,
+					},
+					MessageThreadId: threadId,
+					ReplyMarkup:     replyMarkup,
+				})
+				if sentMsg.MessageId != 0 {
+					database.MsgIdAddNewPair(msgId, v.Info.MessageSource.Sender.String(), v.Info.Chat.String(),
+						cfg.Telegram.TargetChatID, sentMsg.MessageId, sentMsg.MessageThreadId)
+				}
+				return
+			}
+
 			if stickerMsg.GetIsAnimated() || stickerMsg.GetIsAvatar() {
 				// Try to convert to WEBM first (preferred for animated stickers)
 				webmBytes, err := utils.AnimatedWebpConvertToWebm(stickerBytes, v.Info.ID)

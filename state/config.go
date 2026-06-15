@@ -28,6 +28,8 @@ type Config struct {
 		OwnerID             int64   `yaml:"owner_id"`
 		TargetChatID        int64   `yaml:"target_chat_id"`
 		SelfHostedAPI       bool    `yaml:"self_hosted_api"`
+		SendImagesAsFile    bool    `yaml:"send_images_as_file"`
+		SendStickersAsFile   bool    `yaml:"send_stickers_as_file"`
 		SkipVideoStickers   bool    `yaml:"skip_video_stickers"`
 		SkipSettingCommands bool    `yaml:"skip_setting_commands"`
 		SendMyPresence      bool    `yaml:"send_my_presence"`
