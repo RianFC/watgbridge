@@ -7,7 +7,6 @@ import (
 	"html"
 	"io"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -78,12 +77,9 @@ func TgGetOrMakeThreadFromWa(waChatId waTypes.JID, tgChatId int64, threadName st
 }
 
 func TgDownloadByFilePath(b *gotgbot.Bot, filePath string) ([]byte, error) {
-	if state.State.Config.Telegram.SelfHostedAPI {
-		return os.ReadFile(filePath)
-	}
-
+	apiURL := strings.TrimRight(state.State.Config.Telegram.APIURL, "/")
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/file/bot%s/%s",
-		state.State.Config.Telegram.APIURL, b.Token, filePath), nil)
+		apiURL, b.Token, filePath), nil)
 	if err != nil {
 		return nil, err
 	}
